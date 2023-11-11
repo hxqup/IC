@@ -1,10 +1,3 @@
-/*
- * @Author: MingshanHe 
- * @Date: 2021-12-05 04:08:47 
- * @Last Modified by:   MingshanHe 
- * @Last Modified time: 2021-12-05 04:08:47 
- * @Licence: MIT Licence
- */
 #include <Admittance/Admittance.h>
 
 Admittance::Admittance(ros::NodeHandle &n,
@@ -98,7 +91,8 @@ void Admittance::run() {
 
 void Admittance::compute_admittance() {
   Matrix6d rotation_ft_base;
-  desired_wrench_(2) = -20;
+  desired_wrench_.setZero();
+  desired_wrench_(2) = -10;
   error.topRows(3) = arm_position_ - desired_pose_position_;
   if(desired_pose_orientation_.coeffs().dot(arm_orientation_.coeffs()) < 0.0)
   {
@@ -116,8 +110,12 @@ void Admittance::compute_admittance() {
   Vector6d coupling_wrench_arm;
 
   coupling_wrench_arm=  D_ * (arm_desired_twist_adm_) + K_*error;
+    get_rotation_matrix(rotation_ft_base, listener_ft_, base_link_, end_link_);
+    wrench_external_ <<  rotation_ft_base * wrench_external_;
+    desired_wrench_ << rotation_ft_base * desired_wrench_;
+    std::cout<<desired_wrench_(0)<<" "<<desired_wrench_(1)<<" "<<desired_wrench_(2)<<std::endl;
   arm_desired_accelaration = M_.inverse() * ( - coupling_wrench_arm  + wrench_external_ - desired_wrench_);
-  double a_acc_norm = (arm_desired_accelaration.segment(0, 3)).norm();
+//   double a_acc_norm = (arm_desired_accelaration.segment(0, 3)).norm();
 
   // if (a_acc_norm > arm_max_acc_) {
   //   ROS_WARN_STREAM_THROTTLE(1, "Admittance generates high arm accelaration!"
@@ -125,6 +123,7 @@ void Admittance::compute_admittance() {
   //   arm_desired_accelaration.segment(0, 3) *= (arm_max_acc_ / a_acc_norm);
   // }
   // Integrate for velocity based interface
+
   ros::Duration duration = loop_rate_.expectedCycleTime();
   arm_desired_twist_adm_ += arm_desired_accelaration * duration.toSec();
 }
@@ -158,8 +157,9 @@ void Admittance::state_wrench_callback(
     wrench_ft_frame <<  msg->wrench.force.x,msg->wrench.force.y,msg->wrench.force.z,0,0,0;
     // 它的期望力似乎是定义在基坐标系下，需要把力转换下
     // 下面这个函数求的是传感器坐标系到基坐标系下的变换
-    get_rotation_matrix(rotation_ft_base, listener_ft_, base_link_, end_link_);
-    wrench_external_ <<  rotation_ft_base * wrench_ft_frame;
+    // get_rotation_matrix(rotation_ft_base, listener_ft_, base_link_, end_link_);
+    // wrench_external_ <<  rotation_ft_base * wrench_ft_frame;
+    wrench_external_ <<  wrench_ft_frame;
   }
 }
 
@@ -175,10 +175,10 @@ void Admittance::send_commands_to_robot() {
 
   // }
   geometry_msgs::Twist arm_twist_cmd;
-
-  arm_twist_cmd.linear.x  = 0; // 这个地方可以用wrench_external判断一下
-  arm_twist_cmd.linear.y  = 0.001;
+  arm_twist_cmd.linear.x  = -arm_desired_twist_adm_(0) * 0.05; // 这个地方可以用wrench_external判断一下
+  arm_twist_cmd.linear.y  = -arm_desired_twist_adm_(1) * 0.05;
   arm_twist_cmd.linear.z  = -arm_desired_twist_adm_(2) * 0.05;
+  // std::cout<<arm_twist_cmd.linear.x<<" "<<arm_twist_cmd.linear.y<<" "<<arm_twist_cmd.linear.z<<std::endl;
   arm_twist_cmd.angular.x = 0;
   arm_twist_cmd.angular.y = 0;
   arm_twist_cmd.angular.z = 0;
@@ -197,6 +197,7 @@ bool Admittance::get_rotation_matrix(Matrix6d & rotation_matrix,
     listener.lookupTransform(from_frame, to_frame,
                             ros::Time(0), transform);
     tf::matrixTFToEigen(transform.getBasis(), rotation_from_to);
+    std::cout<<rotation_from_to<<std::endl;
     rotation_matrix.setZero();
     rotation_matrix.topLeftCorner(3, 3) = rotation_from_to;
     rotation_matrix.bottomRightCorner(3, 3) = rotation_from_to;

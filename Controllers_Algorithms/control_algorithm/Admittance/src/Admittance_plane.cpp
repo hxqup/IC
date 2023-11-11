@@ -1,3 +1,10 @@
+/*
+ * @Author: MingshanHe 
+ * @Date: 2021-12-05 04:08:47 
+ * @Last Modified by:   MingshanHe 
+ * @Last Modified time: 2021-12-05 04:08:47 
+ * @Licence: MIT Licence
+ */
 #include <Admittance/Admittance.h>
 
 Admittance::Admittance(ros::NodeHandle &n,
@@ -32,6 +39,7 @@ Admittance::Admittance(ros::NodeHandle &n,
   arm_twist_.setZero();
   wrench_external_.setZero();
   desired_wrench_.setZero();
+  Phi.setZero();
   desired_pose_position_ << desired_pose_.topRows(3);
   desired_pose_orientation_.coeffs() << desired_pose_.bottomRows(4)/desired_pose_.bottomRows(4).norm();
 
@@ -169,7 +177,7 @@ void Admittance::send_commands_to_robot() {
   geometry_msgs::Twist arm_twist_cmd;
 
   arm_twist_cmd.linear.x  = 0; // 这个地方可以用wrench_external判断一下
-  arm_twist_cmd.linear.y  = 0
+  arm_twist_cmd.linear.y  = 0.001;
   arm_twist_cmd.linear.z  = -arm_desired_twist_adm_(2) * 0.05;
   arm_twist_cmd.angular.x = 0;
   arm_twist_cmd.angular.y = 0;
