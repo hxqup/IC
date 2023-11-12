@@ -93,6 +93,7 @@ void Admittance::compute_admittance() {
   Matrix6d rotation_ft_base;
   desired_wrench_.setZero();
   desired_wrench_(2) = -10;
+  // desired_wrench_(1) = 2;
   error.topRows(3) = arm_position_ - desired_pose_position_;
   if(desired_pose_orientation_.coeffs().dot(arm_orientation_.coeffs()) < 0.0)
   {
@@ -111,9 +112,9 @@ void Admittance::compute_admittance() {
 
   coupling_wrench_arm=  D_ * (arm_desired_twist_adm_) + K_*error;
     get_rotation_matrix(rotation_ft_base, listener_ft_, base_link_, end_link_);
-    wrench_external_ <<  rotation_ft_base * wrench_external_;
     desired_wrench_ << rotation_ft_base * desired_wrench_;
-    std::cout<<desired_wrench_(0)<<" "<<desired_wrench_(1)<<" "<<desired_wrench_(2)<<std::endl;
+    std::cout<<"desired_wrench:"<<desired_wrench_(0)<<" "<<desired_wrench_(1)<<" "<<desired_wrench_(2)<<std::endl;
+    std::cout<<"external_wrench:"<<wrench_external_(0)<<" "<<wrench_external_(1)<<" "<<wrench_external_(2)<<std::endl;
   arm_desired_accelaration = M_.inverse() * ( - coupling_wrench_arm  + wrench_external_ - desired_wrench_);
 //   double a_acc_norm = (arm_desired_accelaration.segment(0, 3)).norm();
 
@@ -176,9 +177,9 @@ void Admittance::send_commands_to_robot() {
   // }
   geometry_msgs::Twist arm_twist_cmd;
   arm_twist_cmd.linear.x  = -arm_desired_twist_adm_(0) * 0.05; // 这个地方可以用wrench_external判断一下
-  arm_twist_cmd.linear.y  = -arm_desired_twist_adm_(1) * 0.05;
-  arm_twist_cmd.linear.z  = -arm_desired_twist_adm_(2) * 0.05;
-  // std::cout<<arm_twist_cmd.linear.x<<" "<<arm_twist_cmd.linear.y<<" "<<arm_twist_cmd.linear.z<<std::endl;
+  arm_twist_cmd.linear.y  = arm_desired_twist_adm_(1) * 0.5;
+  arm_twist_cmd.linear.z  = arm_desired_twist_adm_(2) * 0.5;
+  std::cout<<"twist:"<<arm_twist_cmd.linear.x<<" "<<arm_twist_cmd.linear.y<<" "<<arm_twist_cmd.linear.z<<std::endl;
   arm_twist_cmd.angular.x = 0;
   arm_twist_cmd.angular.y = 0;
   arm_twist_cmd.angular.z = 0;
@@ -197,7 +198,7 @@ bool Admittance::get_rotation_matrix(Matrix6d & rotation_matrix,
     listener.lookupTransform(from_frame, to_frame,
                             ros::Time(0), transform);
     tf::matrixTFToEigen(transform.getBasis(), rotation_from_to);
-    std::cout<<rotation_from_to<<std::endl;
+    // std::cout<<rotation_from_to<<std::endl;
     rotation_matrix.setZero();
     rotation_matrix.topLeftCorner(3, 3) = rotation_from_to;
     rotation_matrix.bottomRightCorner(3, 3) = rotation_from_to;
